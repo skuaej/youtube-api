@@ -106,43 +106,57 @@ def get_direct_url(url: str, format_id: Optional[str] = None) -> Optional[str]:
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
-            # If we asked for a specific format_id handled by yt-dlp selector (unlikely to match exact id syntax if complex),
-            # but usually we iterate.
-            # However, if format_id was None, info['url'] is the 'best' url.
-            # If format_id was specific, we might still get a full list if we didn't specify format in opts correctly for finding JUST that one.
-            # But let's stick to the previous filtered logic for specific ID, and direct info['url'] for default.
             
             if format_id:
-                # If specific ID requested, we might need to look for it if 'format' opt didn't filter it alone (it can be tricky).
-                # Re-using previous logic is safer for specific IDs unless we trust yt-dlp 'format' opt to just return that one.
-                # Actually, if we pass 'format': format_id, extract_info should return that format's info or trigger selector.
-                # But 'formats' list is often still present.
                 if 'url' in info:
                     return info['url']
                 for f in info.get('formats', []):
                     if f.get('format_id') == format_id:
                         return f.get('url')
             else:
-               # specific case: just return the url of the simple 'best' selection
                return info.get('url')
                
             return None
         except Exception:
-            # If 'best' fails (e.g. video only), we might fall back or just return None
             return None
 
 def get_audio_url(url: str) -> Optional[str]:
     """
     Get the direct download URL for the best audio stream.
+    Prioritizes direct progressive links (m4a/webm) over HLS manifests to ensure compatibility with simple downloaders.
     """
     ydl_opts = get_opts({
+        # We explicitly ask for m4a or webm audio that is NOT a manifest (protocol starts with http)
+        # This string tells yt-dlp: Look for best audio with m4a extension, OR best audio with webm extension, OR just best audio.
+        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
         'quiet': True,
         'no_warnings': True,
-        'format': 'bestaudio/best',
+        'noplaylist': True
     })
+    
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
+            
+            # Additional safety check preventing HLS/M3U8 return
+            if info.get('url', '').endswith('.m3u8') or info.get('protocol') == 'm3u8':
+                # Manifest detected despite preferences. Fallback to manual scan.
+                print("Manifest detected, scanning formats for progressive stream...")
+                formats = info.get('formats', [])
+                valid_formats = [
+                    f for f in formats 
+                    if f.get('acodec') != 'none' 
+                    and f.get('vcodec') == 'none'
+                    and (f.get('protocol') in ['https', 'http'] or f.get('protocol', '').startswith('http'))
+                    and not f.get('url', '').endswith('.m3u8')
+                ]
+                
+                if valid_formats:
+                    # Sort by size (proxy for quality)
+                    best = sorted(valid_formats, key=lambda x: x.get('filesize') or 0, reverse=True)[0]
+                    return best['url']
+
             return info.get('url')
-        except Exception:
+        except Exception as e:
+            print(f"Audio URL Extraction Error: {e}")
             return None
