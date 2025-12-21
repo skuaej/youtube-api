@@ -125,15 +125,34 @@ def get_audio_url(url: str) -> Optional[str]:
     Get the direct download URL for the best audio stream.
     Tries to find a progressive stream (m4a/webm) to avoid HLS issues.
     """
-    ydl_opts = get_opts({
-        # We REMOVE the 'format' selector to ensure yt-dlp returns metadata for ALL formats.
-        # This allows our manual filter to find the progressive formats (140, 251) even if 'best' is HLS.
-        'quiet': True,
-        'noplaylist': True
-    })
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        # We let exceptions propagate so main.py can catch them and show the real error.
+    # Strategy 1: Try with cookies (if available) to bypass age-gates/premium checks
+    try:
+        ydl_opts_cookies = get_opts({
+            'quiet': True,
+            'noplaylist': True,
+            # 'format': ... # We scan all formats manually
+        })
+        return extract_audio_url_with_opts(url, ydl_opts_cookies)
+    except Exception as e:
+        print(f"Extraction with cookies failed: {e}")
+        # Strategy 2: If cookies failed (e.g. flagged account, challenge error), try WITHOUT cookies
+        # Some server IPs work better anonymously for certain videos.
+        if os.path.exists('cookies.txt'):
+             print("Retrying without cookies...")
+             ydl_opts_no_cookies = {
+                'quiet': True,
+                'noplaylist': True,
+             }
+             try:
+                return extract_audio_url_with_opts(url, ydl_opts_no_cookies)
+             except Exception as e2:
+                 # If both fail, raise the original error (or the new one)
+                 raise Exception(f"Failed with and without cookies. Last error: {e2}")
+        else:
+            raise e
+
+def extract_audio_url_with_opts(url: str, opts: Dict[str, Any]) -> Optional[str]:
+    with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
         
         # 1. Start by scanning ALL formats for the best progressive audio
@@ -158,5 +177,4 @@ def get_audio_url(url: str) -> Optional[str]:
         if info.get('url') and not info['url'].endswith('.m3u8') and info.get('protocol') != 'm3u8':
             return info['url']
             
-        # If we reach here, we found metadata but no playable audio URL
         raise Exception("No progressive audio stream found (HLS only).")
