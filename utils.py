@@ -4,8 +4,8 @@ import os
 
 def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
     """Helper to add common options like cookies."""
-    if os.path.exists('cookies.txt'):
-        base_opts['cookiefile'] = 'cookies.txt'
+    # if os.path.exists('cookies.txt'):
+    #     base_opts['cookiefile'] = 'cookies.txt'
     return base_opts
 
 def get_video_info(url: str) -> Dict[str, Any]:
@@ -123,14 +123,12 @@ def get_direct_url(url: str, format_id: Optional[str] = None) -> Optional[str]:
 def get_audio_url(url: str) -> Optional[str]:
     """
     Get the direct download URL for the best audio stream.
-    Prioritizes direct progressive links (m4a/webm) over HLS manifests to ensure compatibility with simple downloaders.
+    Tries to find a progressive stream (m4a/webm) to avoid HLS issues.
     """
     ydl_opts = get_opts({
-        # We explicitly ask for m4a or webm audio that is NOT a manifest (protocol starts with http)
-        # This string tells yt-dlp: Look for best audio with m4a extension, OR best audio with webm extension, OR just best audio.
-        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
+        # We REMOVE the 'format' selector to ensure yt-dlp returns metadata for ALL formats.
+        # This allows our manual filter to find the progressive formats (140, 251) even if 'best' is HLS.
         'quiet': True,
-        'no_warnings': True,
         'noplaylist': True
     })
     
@@ -138,25 +136,30 @@ def get_audio_url(url: str) -> Optional[str]:
         try:
             info = ydl.extract_info(url, download=False)
             
-            # Additional safety check preventing HLS/M3U8 return
-            if info.get('url', '').endswith('.m3u8') or info.get('protocol') == 'm3u8':
-                # Manifest detected despite preferences. Fallback to manual scan.
-                print("Manifest detected, scanning formats for progressive stream...")
-                formats = info.get('formats', [])
-                valid_formats = [
-                    f for f in formats 
-                    if f.get('acodec') != 'none' 
-                    and f.get('vcodec') == 'none'
-                    and (f.get('protocol') in ['https', 'http'] or f.get('protocol', '').startswith('http'))
-                    and not f.get('url', '').endswith('.m3u8')
-                ]
-                
-                if valid_formats:
-                    # Sort by size (proxy for quality)
-                    best = sorted(valid_formats, key=lambda x: x.get('filesize') or 0, reverse=True)[0]
-                    return best['url']
+            # 1. Start by scanning ALL formats for the best progressive audio
+            formats = info.get('formats', [])
+            
+            # Filter: Audio Only, Progressive (http/https), No Manifests
+            valid_formats = [
+                f for f in formats 
+                if f.get('acodec') != 'none' 
+                and (f.get('vcodec') == 'none' or f.get('vcodec') == 'null') # Strict audio only
+                and (f.get('protocol') in ['https', 'http'] or f.get('protocol', '').startswith('http'))
+                and not f.get('url', '').endswith('.m3u8')
+            ]
+            
+            if valid_formats:
+                # Sort by quality (filesize or bitrate), picking the best one
+                best = sorted(valid_formats, key=lambda x: x.get('filesize') or x.get('tbr') or 0, reverse=True)[0]
+                print(f"Selected Format: {best.get('format_id')} ({best.get('ext')})") # Debug
+                return best['url']
 
-            return info.get('url')
+            # 2. Fallback: If no strict progressive audio found, try primary URL if it's safe
+            if info.get('url') and not info['url'].endswith('.m3u8') and info.get('protocol') != 'm3u8':
+                return info['url']
+                
+            print("No progressive audio found.")
+            return None
         except Exception as e:
             print(f"Audio URL Extraction Error: {e}")
             return None
