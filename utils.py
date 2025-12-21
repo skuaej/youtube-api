@@ -133,33 +133,30 @@ def get_audio_url(url: str) -> Optional[str]:
     })
     
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            info = ydl.extract_info(url, download=False)
-            
-            # 1. Start by scanning ALL formats for the best progressive audio
-            formats = info.get('formats', [])
-            
-            # Filter: Audio Only, Progressive (http/https), No Manifests
-            valid_formats = [
-                f for f in formats 
-                if f.get('acodec') != 'none' 
-                and (f.get('vcodec') == 'none' or f.get('vcodec') == 'null') # Strict audio only
-                and (f.get('protocol') in ['https', 'http'] or f.get('protocol', '').startswith('http'))
-                and not f.get('url', '').endswith('.m3u8')
-            ]
-            
-            if valid_formats:
-                # Sort by quality (filesize or bitrate), picking the best one
-                best = sorted(valid_formats, key=lambda x: x.get('filesize') or x.get('tbr') or 0, reverse=True)[0]
-                print(f"Selected Format: {best.get('format_id')} ({best.get('ext')})") # Debug
-                return best['url']
+        # We let exceptions propagate so main.py can catch them and show the real error.
+        info = ydl.extract_info(url, download=False)
+        
+        # 1. Start by scanning ALL formats for the best progressive audio
+        formats = info.get('formats', [])
+        
+        # Filter: Audio Only, Progressive (http/https), No Manifests
+        valid_formats = [
+            f for f in formats 
+            if f.get('acodec') != 'none' 
+            and (f.get('vcodec') == 'none' or f.get('vcodec') == 'null') # Strict audio only
+            and (f.get('protocol') in ['https', 'http'] or f.get('protocol', '').startswith('http'))
+            and not f.get('url', '').endswith('.m3u8')
+        ]
+        
+        if valid_formats:
+            # Sort by quality (filesize or bitrate), picking the best one
+            best = sorted(valid_formats, key=lambda x: x.get('filesize') or x.get('tbr') or 0, reverse=True)[0]
+            print(f"Selected Format: {best.get('format_id')} ({best.get('ext')})") # Debug
+            return best['url']
 
-            # 2. Fallback: If no strict progressive audio found, try primary URL if it's safe
-            if info.get('url') and not info['url'].endswith('.m3u8') and info.get('protocol') != 'm3u8':
-                return info['url']
-                
-            print("No progressive audio found.")
-            return None
-        except Exception as e:
-            print(f"Audio URL Extraction Error: {e}")
-            return None
+        # 2. Fallback: If no strict progressive audio found, try primary URL if it's safe
+        if info.get('url') and not info['url'].endswith('.m3u8') and info.get('protocol') != 'm3u8':
+            return info['url']
+            
+        # If we reach here, we found metadata but no playable audio URL
+        raise Exception("No progressive audio stream found (HLS only).")
