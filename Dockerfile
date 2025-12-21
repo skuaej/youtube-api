@@ -4,6 +4,7 @@ FROM python:3.10-slim
 # Install system dependencies (FFmpeg is crucial for yt-dlp merging)
 RUN apt-get update && apt-get install -y \
     ffmpeg \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Set working directory

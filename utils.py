@@ -4,8 +4,8 @@ import os
 
 def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
     """Helper to add common options like cookies."""
-    # if os.path.exists('cookies.txt'):
-    #     base_opts['cookiefile'] = 'cookies.txt'
+    if os.path.exists('cookies.txt'):
+        base_opts['cookiefile'] = 'cookies.txt'
     return base_opts
 
 def get_video_info(url: str) -> Dict[str, Any]:
