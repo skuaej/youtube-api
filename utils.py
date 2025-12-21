@@ -125,6 +125,14 @@ def get_audio_url(url: str) -> Optional[str]:
     Get the direct download URL for the best audio stream.
     Tries to find a progressive stream (m4a/webm) to avoid HLS issues.
     """
+    # Common headers to mimic a real browser
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Sec-Fetch-Mode': 'navigate',
+    }
+
     # Strategy 1: Try with cookies (if available) to bypass age-gates/premium checks
     try:
         ydl_opts_cookies = get_opts({
@@ -132,6 +140,13 @@ def get_audio_url(url: str) -> Optional[str]:
             'noplaylist': True,
             # 'format': ... # We scan all formats manually
         })
+        # Add headers manually to opts (yt-dlp usually handles this, but we force it)
+        # Note: yt-dlp uses 'http_headers' key inside params, or we can pass it to YoutubeDL constructor?
+        # Actually, standard way is just letting yt-dlp pick, but if we want to force:
+        # We can't easily pass http_headers inside 'get_opts' dict directly for YoutubeDL unless using key 'http_headers'
+        # BUT yt-dlp might override. Let's try passing it in the dict.
+        ydl_opts_cookies['http_headers'] = headers
+        
         return extract_audio_url_with_opts(url, ydl_opts_cookies)
     except Exception as e:
         print(f"Extraction with cookies failed: {e}")
@@ -142,6 +157,7 @@ def get_audio_url(url: str) -> Optional[str]:
              ydl_opts_no_cookies = {
                 'quiet': True,
                 'noplaylist': True,
+                'http_headers': headers
              }
              try:
                 return extract_audio_url_with_opts(url, ydl_opts_no_cookies)
