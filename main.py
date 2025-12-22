@@ -5,7 +5,20 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import uvicorn
 import requests
+import os
 from utils import get_video_info, get_direct_url, get_audio_url
+
+# Secure Cookie Injection for Deployment
+# Checks for COOKIES_TXT_CONTENT env var and creates the file if needed
+if 'COOKIES_TXT_CONTENT' in os.environ:
+    if not os.path.exists('cookies.txt'):
+        print("Injecting cookies.txt from environment variable...")
+        with open('cookies.txt', 'w') as f:
+            f.write(os.environ['COOKIES_TXT_CONTENT'])
+    else:
+        print("cookies.txt already exists, skipping injection.")
+else:
+    print("WARNING: COOKIES_TXT_CONTENT env var not set. YouTube sign-in issues may occur.")
 
 app = FastAPI(title="YouTube API", description="API to fetch YouTube video info and download links", version="1.0.0")
 
