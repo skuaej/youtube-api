@@ -9,14 +9,15 @@ import os
 from utils import get_video_info, get_direct_url, get_audio_url
 
 # Secure Cookie Injection for Deployment
-# Checks for COOKIES_TXT_CONTENT env var and creates the file if needed
+# Checks for COOKIES_TXT_CONTENT env var and creates/overwrites the file
 if 'COOKIES_TXT_CONTENT' in os.environ:
-    if not os.path.exists('cookies.txt'):
-        print("Injecting cookies.txt from environment variable...")
+    print("Injecting cookies.txt from environment variable (Overwriting if exists)...")
+    try:
         with open('cookies.txt', 'w') as f:
             f.write(os.environ['COOKIES_TXT_CONTENT'])
-    else:
-        print("cookies.txt already exists, skipping injection.")
+        print(f"Successfully wrote cookies.txt ({len(os.environ['COOKIES_TXT_CONTENT'])} bytes)")
+    except Exception as e:
+        print(f"Error writing cookies.txt: {e}")
 else:
     print("WARNING: COOKIES_TXT_CONTENT env var not set. YouTube sign-in issues may occur.")
 
