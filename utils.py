@@ -14,7 +14,8 @@ def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
     
     # 3. Explicitly enable Node.js
     # yt-dlp defaults to Deno-only recently. We must tell it to use node.
-    base_opts['js_runtimes'] = ['node', 'nodejs']
+    # Error fix: js_runtimes must be a dict {name: args}, e.g. {'node': []}
+    base_opts['js_runtimes'] = {'node': [], 'nodejs': []}
     
     return base_opts
 
