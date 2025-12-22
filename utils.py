@@ -138,6 +138,9 @@ def get_audio_url(url: str) -> Optional[str]:
             }
         }
     })
+    # Critical: yt-dlp skips Android client if cookies are present. We must remove them.
+    if 'cookiefile' in android_opts:
+        del android_opts['cookiefile']
 
     try:
         return extract_audio_url_with_opts(url, android_opts)
@@ -145,14 +148,15 @@ def get_audio_url(url: str) -> Optional[str]:
         print(f"Extraction with Android client failed: {e}")
         
         # Strategy 2: Standard Web Client (No Cookies)
-        # If Android fails (e.g. video blocked on mobile), try generic web request without cookies.
-        # Sometimes logging in (cookies) actually HURTS on data centers if the account is flagged.
-        print("Retrying with standard Web client (No Cookies)...")
-        web_opts = {
+        # If Android fails (e.g. video blocked on mobile), try generic web request.
+        # We NOW try with cookies if available, as that is the standard fix for "Sign in" errors.
+        print("Retrying with standard Web client...")
+        # Use get_opts to include cookies.txt if present
+        web_opts = get_opts({
             'quiet': True,
             'noplaylist': True,
             # No custom headers, let yt-dlp mimic default
-        }
+        })
         try:
             return extract_audio_url_with_opts(url, web_opts)
         except Exception as e2:
