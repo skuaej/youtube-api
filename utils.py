@@ -3,9 +3,19 @@ from typing import Dict, Any, List, Optional
 import os
 
 def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to add common options like cookies."""
+    """Helper to add common options like cookies and headers."""
+    # 1. Add Cookies
     if os.path.exists('cookies.txt'):
         base_opts['cookiefile'] = 'cookies.txt'
+    
+    # 2. Add User Agent (Spoof generic Chrome on Windows)
+    # This helps avoid "Sign in" checks that flag the default yt-dlp UA.
+    base_opts['user_agent'] = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    
+    # 3. Explicitly enable Node.js
+    # yt-dlp defaults to Deno-only recently. We must tell it to use node.
+    base_opts['js_runtimes'] = ['node', 'nodejs']
+    
     return base_opts
 
 def get_video_info(url: str) -> Dict[str, Any]:
