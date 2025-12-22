@@ -10,18 +10,71 @@ from utils import get_video_info, get_direct_url, get_audio_url
 
 # Secure Cookie Injection for Deployment
 # Checks for COOKIES_TXT_CONTENT env var and creates/overwrites the file
+VERSION = "1.1.0-debug"
+WRITE_STATUS = "Not Attempted"
+
 if 'COOKIES_TXT_CONTENT' in os.environ:
     print("Injecting cookies.txt from environment variable (Overwriting if exists)...")
     try:
+        content = os.environ['COOKIES_TXT_CONTENT']
+        if os.path.exists('cookies.txt'):
+            os.remove('cookies.txt')
+            
         with open('cookies.txt', 'w') as f:
-            f.write(os.environ['COOKIES_TXT_CONTENT'])
-        print(f"Successfully wrote cookies.txt ({len(os.environ['COOKIES_TXT_CONTENT'])} bytes)")
+            f.write(content)
+            
+        # Verify write
+        size = os.path.getsize('cookies.txt')
+        WRITE_STATUS = f"Success. Wrote {size} bytes. Env Var len: {len(content)}"
+        print(WRITE_STATUS)
     except Exception as e:
+        WRITE_STATUS = f"Error: {e}"
         print(f"Error writing cookies.txt: {e}")
 else:
+    WRITE_STATUS = "Skipped (Env Var missing)"
     print("WARNING: COOKIES_TXT_CONTENT env var not set. YouTube sign-in issues may occur.")
 
-app = FastAPI(title="YouTube API", description="API to fetch YouTube video info and download links", version="1.0.0")
+app = FastAPI(title="YouTube API", description="API to fetch YouTube video info and download links", version=VERSION)
+# ... imports ...
+
+# ... middleware ...
+
+# ... routes ...
+
+@app.get("/debug-config")
+def debug_config():
+    """
+    Returns debug information about the server configuration.
+    WARNING: Do not expose this in production if it contains sensitive data.
+    """
+    import os
+    
+    cookies_exists = os.path.exists("cookies.txt")
+    cookies_size = os.path.getsize("cookies.txt") if cookies_exists else 0
+    
+    # Read first line to verify content (without exposing full cookie)
+    first_line = ""
+    tail = ""
+    if cookies_exists:
+        try:
+            with open("cookies.txt", "r") as f:
+                content = f.read()
+                first_line = content.splitlines()[0] if content else "Empty File"
+                tail = content[-20:] if content else "Empty"
+        except Exception as e:
+            first_line = f"Error reading: {e}"
+
+    return {
+        "version": VERSION,
+        "startup_write_status": WRITE_STATUS,
+        "cwd": os.getcwd(),
+        "cookies_txt_exists": cookies_exists,
+        "cookies_txt_size": cookies_size,
+        "env_var_present": "COOKIES_TXT_CONTENT" in os.environ,
+        "env_var_length": len(os.environ.get("COOKIES_TXT_CONTENT", "")),
+        "cookies_head": first_line[:30] + "..." if first_line else "Empty",
+        "cookies_tail": tail
+    }
 
 # Enable CORS
 app.add_middleware(
