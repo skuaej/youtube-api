@@ -15,7 +15,8 @@ def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
     # 3. Explicitly enable Node.js
     # yt-dlp defaults to Deno-only recently. We must tell it to use node.
     # Error fix: js_runtimes must be a dict {name: config_dict}
-    base_opts['js_runtimes'] = {'node': {}, 'nodejs': {}}
+    # Log said 'nodejs' is unsupported, used 'node' only.
+    base_opts['js_runtimes'] = {'node': {}}
     
     return base_opts
 
@@ -170,8 +171,29 @@ def get_audio_url(url: str) -> Optional[str]:
         })
         try:
             return extract_audio_url_with_opts(url, web_opts)
-        except Exception as e2:
             raise Exception(f"Failed with Android and Web clients. Last error: {e2}")
+            
+        except Exception as e2:
+            print(f"Web client failed: {e2}")
+            
+            # Strategy 3: TV Embedded Client
+            # Last resort: Mimic a Smart TV. Often has different rate limits.
+            print("Retrying with TV client...")
+            tv_opts = get_opts({
+                'quiet': True,
+                'noplaylist': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv']
+                    }
+                }
+            })
+            # TV client usually works better WITHOUT cookies for public videos, 
+            # or WITH them if premium. Let's try WITH cookies first since we have them.
+            try:
+                return extract_audio_url_with_opts(url, tv_opts)
+            except Exception as e3:
+                 raise Exception(f"All strategies failed (Android, Web, TV). Last error: {e3}")
 
 def extract_audio_url_with_opts(url: str, opts: Dict[str, Any]) -> Optional[str]:
     with yt_dlp.YoutubeDL(opts) as ydl:
