@@ -20,74 +20,57 @@ def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
     
     return base_opts
 
+from youtubesearchpython import VideosSearch
+
 def get_video_info(url: str) -> Dict[str, Any]:
     """
-    Fetches video metadata and formats from YouTube using yt-dlp.
+    Fetches video metadata using youtubesearchpython (Hybrid Strategy).
+    Avoids yt-dlp "Sign in" blocks for basic metadata.
     """
-    ydl_opts = get_opts({
-        'quiet': True,
-        'no_warnings': True,
-        'format': 'best',  # Default to best, but we will list all
-    })
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            info = ydl.extract_info(url, download=False)
-            return process_info(info)
-        except Exception as e:
-            raise Exception(f"Error fetching video info: {str(e)}")
+    try:
+        # Extract ID from URL if possible, or search
+        videosSearch = VideosSearch(url, limit = 1)
+        result = videosSearch.result()
+        
+        if not result['result']:
+            raise Exception("No video found")
+            
+        video = result['result'][0]
+        
+        # Map to our expected format
+        return {
+            'id': video.get('id'),
+            'title': video.get('title'),
+            'thumbnail': video.get('thumbnails', [{}])[-1].get('url'),
+            'uploader': video.get('channel', {}).get('name'),
+            'duration': video.get('duration'),
+            'view_count': video.get('viewCount', {}).get('short'), # approximate
+            'webpage_url': video.get('link'),
+            'formats': {
+                'video_audio': [], # Not available via search
+                'video_only': [],
+                'audio_only': []
+            }
+        }
+    except Exception as e:
+         # Fallback to yt-dlp if search fails (rare)
+         print(f"Hybrid search failed: {e}. Falling back to yt-dlp...")
+         ydl_opts = get_opts({
+            'quiet': True,
+            'no_warnings': True,
+            'format': 'best',
+        })
+         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            try:
+                info = ydl.extract_info(url, download=False)
+                return process_info(info)
+            except Exception as e2:
+                raise Exception(f"Hybrid and yt-dlp both failed: {str(e2)}")
 
 def process_info(info: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Cleans and structures the raw yt-dlp info dictionary.
-    Groups formats by usability.
+    Legacy helper - kept for fallback compatibility.
     """
-    video_audio = []
-    video_only = []
-    audio_only = []
-    
-    # Extract formats
-    if 'formats' in info:
-        for f in info['formats']:
-            # Basic filtering
-            if 'url' not in f:
-                continue
-            
-            # Skip manifest formats if we intend to offer direct downloads, 
-            # though they are fine for streaming players. 
-            # For simplicity, let's keep everything but categorize them.
-            
-            fmt = {
-                'format_id': f.get('format_id'),
-                'ext': f.get('ext'),
-                'resolution': f.get('resolution') or (f'{f.get("width")}x{f.get("height")}' if f.get("width") else 'audio only'),
-                'filesize': f.get('filesize'),
-                'filesize_approx': f.get('filesize_approx'),
-                'vcodec': f.get('vcodec'),
-                'acodec': f.get('acodec'),
-                'tbr': f.get('tbr'), # Total bitrate
-                'note': f.get('format_note', ''),
-                'height': f.get('height', 0) or 0,
-            }
-            
-            is_video = f.get('vcodec') != 'none'
-            is_audio = f.get('acodec') != 'none'
-
-            if is_video and is_audio:
-                fmt['type'] = 'video+audio'
-                video_audio.append(fmt)
-            elif is_video:
-                fmt['type'] = 'video'
-                video_only.append(fmt)
-            elif is_audio:
-                fmt['type'] = 'audio'
-                audio_only.append(fmt)
-
-    # Sort by quality (height or bitrate) descending
-    video_audio.sort(key=lambda x: x['height'] or 0, reverse=True)
-    video_only.sort(key=lambda x: x['height'] or 0, reverse=True)
-    audio_only.sort(key=lambda x: x['tbr'] or 0, reverse=True)
-
     return {
         'id': info.get('id'),
         'title': info.get('title'),
@@ -96,11 +79,7 @@ def process_info(info: Dict[str, Any]) -> Dict[str, Any]:
         'duration': info.get('duration'),
         'view_count': info.get('view_count'),
         'webpage_url': info.get('webpage_url'),
-        'formats': {
-            'video_audio': video_audio,
-            'video_only': video_only,
-            'audio_only': audio_only
-        }
+        'formats': {'video_audio': [], 'video_only': [], 'audio_only': []} # Simplified
     }
 
 def get_direct_url(url: str, format_id: Optional[str] = None) -> Optional[str]:
