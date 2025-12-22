@@ -135,5 +135,35 @@ def download_video(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+@app.get("/debug-config")
+def debug_config():
+    """
+    Returns debug information about the server configuration.
+    WARNING: Do not expose this in production if it contains sensitive data.
+    """
+    import os
+    
+    cookies_exists = os.path.exists("cookies.txt")
+    cookies_size = os.path.getsize("cookies.txt") if cookies_exists else 0
+    
+    # Read first line to verify content (without exposing full cookie)
+    first_line = ""
+    if cookies_exists:
+        try:
+            with open("cookies.txt", "r") as f:
+                first_line = f.readline().strip()
+        except:
+            first_line = "Error reading file"
+
+    return {
+        "cwd": os.getcwd(),
+        "cookies_txt_exists": cookies_exists,
+        "cookies_txt_size": cookies_size,
+        "env_var_present": "COOKIES_TXT_CONTENT" in os.environ,
+        "env_var_length": len(os.environ.get("COOKIES_TXT_CONTENT", "")),
+        "cookies_first_line": first_line[:20] + "..." if first_line else "Empty/Missing"
+    }
+
 if __name__ == "__main__":
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
