@@ -1,4 +1,5 @@
 import yt_dlp
+from yt_dlp.networking.impersonate import ImpersonateTarget
 from typing import Dict, Any, Optional
 import os
 
@@ -7,21 +8,21 @@ def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
     if os.path.exists('cookies.txt'):
         base_opts['cookiefile'] = 'cookies.txt'
     
-    # Enable node runtime for JS challenges
     base_opts['js_runtimes'] = {'node': {}}
     
-    # Force yt-dlp to use clients that aren't actively blocked by YouTube
     if 'extractor_args' not in base_opts:
         base_opts['extractor_args'] = {}
         
     base_opts['extractor_args']['youtube'] = {
-        'player_client': ['web', 'web_embedded', 'tv', 'default']
+        'player_client': ['tv', 'android', 'web']
     }
+    
+    # Properly formatted target object to activate curl_cffi and bypass TLS fingerprinting
+    base_opts['impersonate'] = ImpersonateTarget(client='chrome110')
     
     return base_opts
 
 def get_video_info(url: str) -> Dict[str, Any]:
-    """Fetches video metadata and formats securely using yt-dlp and cookies."""
     ydl_opts = get_opts({
         'quiet': True,
         'no_warnings': True,
@@ -45,7 +46,6 @@ def get_video_info(url: str) -> Dict[str, Any]:
             raise Exception(f"yt-dlp failed to fetch video info: {str(e)}")
 
 def get_direct_url(url: str, format_id: Optional[str] = None) -> Optional[str]:
-    """Gets the direct download URL for a specific format or best available."""
     ydl_opts = get_opts({
         'quiet': True,
         'no_warnings': True,
@@ -63,7 +63,6 @@ def get_direct_url(url: str, format_id: Optional[str] = None) -> Optional[str]:
             return None
 
 def get_audio_url(url: str) -> Optional[str]:
-    """Gets the direct download URL for the best audio stream using fallback strategies."""
     # Strategy 1: Android Client (Usually bypasses blocks, no cookies allowed)
     android_opts = get_opts({
         'quiet': True,
@@ -100,7 +99,6 @@ def get_audio_url(url: str) -> Optional[str]:
                  raise Exception(f"All strategies failed. Last error: {e3}")
 
 def extract_audio_url_with_opts(url: str, opts: Dict[str, Any]) -> Optional[str]:
-    """Helper to extract progressive audio from yt-dlp formats."""
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
         formats = info.get('formats', [])
