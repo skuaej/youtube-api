@@ -3,11 +3,24 @@ from typing import Dict, Any, Optional
 import os
 
 def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
-    """Helper to add common options like cookies and Node.js runtime."""
+    """Helper to add common options like cookies, Node.js runtime, and client bypasses."""
     if os.path.exists('cookies.txt'):
         base_opts['cookiefile'] = 'cookies.txt'
     
+    # Enable node runtime for JS challenges
     base_opts['js_runtimes'] = {'node': {}}
+    
+    # Force yt-dlp to use clients that aren't actively blocked by YouTube
+    if 'extractor_args' not in base_opts:
+        base_opts['extractor_args'] = {}
+        
+    base_opts['extractor_args']['youtube'] = {
+        'player_client': ['web', 'web_embedded', 'tv', 'default']
+    }
+    
+    # Use curl_cffi for impersonation to bypass TLS fingerprinting
+    base_opts['impersonate'] = 'chrome110'
+    
     return base_opts
 
 def get_video_info(url: str) -> Dict[str, Any]:
@@ -29,7 +42,7 @@ def get_video_info(url: str) -> Dict[str, Any]:
                 'duration': info.get('duration'),
                 'view_count': info.get('view_count'),
                 'webpage_url': info.get('webpage_url'),
-                'formats': info.get('formats', []) # Passes actual download links to frontend
+                'formats': info.get('formats', []) 
             }
         except Exception as e:
             raise Exception(f"yt-dlp failed to fetch video info: {str(e)}")
@@ -111,3 +124,4 @@ def extract_audio_url_with_opts(url: str, opts: Dict[str, Any]) -> Optional[str]
             return info['url']
             
         raise Exception("No progressive audio stream found.")
+
