@@ -18,9 +18,6 @@ def get_opts(base_opts: Dict[str, Any]) -> Dict[str, Any]:
         'player_client': ['web', 'web_embedded', 'tv', 'default']
     }
     
-    # Use curl_cffi for impersonation to bypass TLS fingerprinting
-    base_opts['impersonate'] = 'chrome110'
-    
     return base_opts
 
 def get_video_info(url: str) -> Dict[str, Any]:
@@ -124,4 +121,3 @@ def extract_audio_url_with_opts(url: str, opts: Dict[str, Any]) -> Optional[str]
             return info['url']
             
         raise Exception("No progressive audio stream found.")
-
