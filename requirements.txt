@@ -5,3 +5,10 @@ requests
 aiofiles
 youtube-search-python
 yt-dlp
+yt-dlp
+quickjs
+curl_cffi
+fastapi
+uvicorn
+requests
+pydantic
