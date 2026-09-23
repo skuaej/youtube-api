@@ -4,4 +4,4 @@ git+https://github.com/yt-dlp/yt-dlp.git@master
 requests
 aiofiles
 youtube-search-python
-yt-dlp>=2024.08.06
+yt-dlp
